@@ -7,4 +7,6 @@ venv/
 .DS_Store
 node_modules/
 dist/
+build/
+*.spec
 last_drivers.json

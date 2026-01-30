@@ -9,7 +9,7 @@ class NetworkClient:
     def send_command_to_host(self, host_ip, payload):
         url = f"http://{host_ip}:5000/run"
         try:
-            resp = requests.post(url, json=payload, headers=self.headers, timeout=5)
+            resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
             if resp.status_code == 200:
                 return True, f"OK: {resp.json().get('msg')}"
             else:
@@ -20,7 +20,7 @@ class NetworkClient:
     def stop_host(self, host_ip):
         url = f"http://{host_ip}:5000/stop"
         try:
-            requests.post(url, headers=self.headers, timeout=3)
+            requests.post(url, headers=self.headers, timeout=10)
             return True
         except Exception as e:
             print(f"ERROR: {e}")
