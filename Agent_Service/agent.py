@@ -64,7 +64,7 @@ def stop_race():
         return jsonify({"error": "Unauthorized"}), 401
 
     print("Otrzymano polecenie STOP (Ctrl+E)")
-    if launcher.simulate_ctrl_e():
+    if launcher.kill_game():
         return jsonify({"status": "stopped", "msg": "Wysłano Ctrl+E"})
     else:
         return jsonify({"status": "error", "msg": "Błąd symulacji klawiszy"}), 500

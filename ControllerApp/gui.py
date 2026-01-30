@@ -430,7 +430,7 @@ class ACManagerGUI:
             return
 
         self.log(f"Startowanie {len(targets)} maszyn...")
-        srv_ip = self.config.get("server_ip", "192.168.0.11")
+        srv_ip = self.config.get("master_server_ip", "192.168.0.11")
 
         def send_single(target_data):
             payload = {

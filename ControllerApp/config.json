@@ -2,7 +2,7 @@
     "ac_root_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa",
     "secret_token": "asd",
     "clients": [
-        {"name": "RIG 1", "ip": "192.168.55.104"},
+        {"name": "RIG 1", "ip": "192.168.55.101"},
         {"name": "RIG 2", "ip": "192.168.0.15"},
         {"name": "RIG 3", "ip": "192.168.0.16"},
         {"name": "RIG 4", "ip": "192.168.0.13"},
@@ -14,7 +14,7 @@
     ],
     "master_cars_path": "//RIG1/assettocorsa/content/cars",
     "master_tracks_path": "//RIG1/assettocorsa/content/tracks",
-    "master_server_ip": "192.168.0.11",
+    "master_server_ip": "192.168.55.101",
     "sync_cars_paths": [
         "C://Program Files (x86)/Steam/steamapps/common/assetocorsa/content/cars",
         "//RIG2/content/cars",
