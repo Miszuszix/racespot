@@ -122,6 +122,26 @@ class ACManagerGUI:
         self.style.map("TCheckbutton", background=[('active', bg_color)], indicatorcolor=[('selected', accent)])
         self.style.configure("TProgressbar", background=accent, troughcolor=darker_bg, bordercolor="#999999")
 
+        self.style.configure("Start.TButton",
+                             background="#2e7d32",  # Ciemniejsza zieleń
+                             foreground="white",  # Biały tekst
+                             font=('Arial', 10, 'bold'))
+
+        self.style.map("Start.TButton",
+                       background=[('active', '#4caf50'), ('pressed', '#1b5e20')],
+                       # Jaśniejszy po najechaniu, ciemny po wciśnięciu
+                       foreground=[('disabled', '#a0a0a0')])
+
+        # Styl dla przycisku STOP (Czerwony)
+        self.style.configure("Stop.TButton",
+                             background="#c62828",  # Ciemniejsza czerwień
+                             foreground="white",  # Biały tekst
+                             font=('Arial', 10, 'bold'))
+
+        self.style.map("Stop.TButton",
+                       background=[('active', '#ef5350'), ('pressed', '#b71c1c')],  # Jaśniejszy po najechaniu
+                       foreground=[('disabled', '#a0a0a0')])
+
         if hasattr(self, 'log_text') and self.log_text is not None:
             try:
                 self.log_text.configure(bg=log_bg, fg=log_fg, insertbackground=fg_color)
@@ -191,9 +211,17 @@ class ACManagerGUI:
 
         act_frame = ttk.Frame(self.root, padding=20)
         act_frame.pack(fill="x")
-        start_btn = ttk.Button(act_frame, text="🚀 DOŁĄCZ NA SERWER", command=self.start_race)
+
+        # Dodano style="Start.TButton"
+        start_btn = ttk.Button(act_frame, text="🚀 DOŁĄCZ NA SERWER",
+                               command=self.start_race,
+                               style="Start.TButton")
         start_btn.pack(side="left", fill="x", expand=True, padx=5)
-        stop_btn = ttk.Button(act_frame, text="🛑 ZATRZYMAJ WSZYSTKIE ZAZNACZONE", command=self.stop_all)
+
+        # Dodano style="Stop.TButton"
+        stop_btn = ttk.Button(act_frame, text="🛑 ZATRZYMAJ WSZYSTKIE ZAZNACZONE",
+                              command=self.stop_all,
+                              style="Stop.TButton")
         stop_btn.pack(side="right", fill="x", expand=True, padx=5)
 
         log_frame = tk.Frame(self.root)
