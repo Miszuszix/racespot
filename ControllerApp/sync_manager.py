@@ -1,99 +1,137 @@
 import os
 import shutil
+from PySide6.QtCore import QThread, Signal
 
 
-class SyncManager:
-    def __init__(self, config, logger_callback):
-        self.config = config
-        self.log = logger_callback  # Funkcja do wypisywania logów w GUI
+class SyncWorker(QThread):
+    log_signal = Signal(str)
+    finished_signal = Signal()
 
-    def perform_sync(self, dry_run):
-        mode = "[TEST/DRY-RUN]" if dry_run else "[PEŁNA SYNC]"
-        self.log(f"\n{'=' * 10} ROZPOCZYNAM {mode} (Źródło: RIG 1) {'=' * 10}")
+    def __init__(self, config_manager, dry_run=False):
+        super().__init__()
+        self.config_manager = config_manager
+        self.dry_run = dry_run
 
-        src_cars = self.config.get('master_cars_path', '')
-        src_tracks = self.config.get('master_tracks_path', '')
+    def run(self):
+        mode_text = "[TEST MODE]" if self.dry_run else "[ACTUAL SYNC]"
+        self.log_signal.emit(f"\n=== STARTING {mode_text} ===")
 
-        targets_cars = self.config.get('sync_cars_paths', [])
-        targets_tracks = self.config.get('sync_tracks_paths', [])
+        master_cars_directory = self.config_manager.get('master_cars_path', '')
+        master_tracks_directory = self.config_manager.get('master_tracks_path', '')
+        target_cars_directories = self.config_manager.get('sync_cars_paths', [])
+        target_tracks_directories = self.config_manager.get('sync_tracks_paths', [])
 
-        if not src_cars or not src_tracks:
-            self.log("BŁĄD: Nie zdefiniowano ścieżek 'master' w config.json!")
+        if not master_cars_directory or not master_tracks_directory:
+            self.log_signal.emit("ERROR: Master paths not defined in configuration.")
+            self.finished_signal.emit()
             return
 
-        self.log(f"\n>>> SYNCHRONIZACJA SAMOCHODÓW {mode}")
-        if not os.path.exists(src_cars):
-            self.log(f"BŁĄD KRYTYCZNY: Nie widzę folderu źródłowego RIG 1: {src_cars}")
+        self.log_signal.emit(">>> CHECKING CARS & SKINS")
+        if not os.path.exists(master_cars_directory):
+            self.log_signal.emit(f"CRITICAL ERROR: Master cars directory not found: {master_cars_directory}")
         else:
-            for target in targets_cars:
-                self.sync_directory(src_cars, target, dry_run)
+            for target_directory in target_cars_directories:
+                if target_directory.strip():
+                    self.sync_cars_directory(master_cars_directory, target_directory)
 
-        self.log(f"\n>>> SYNCHRONIZACJA TORÓW {mode}")
-        if not os.path.exists(src_tracks):
-            self.log(f"BŁĄD KRYTYCZNY: Nie widzę folderu źródłowego RIG 1: {src_tracks}")
+        self.log_signal.emit(">>> CHECKING TRACKS")
+        if not os.path.exists(master_tracks_directory):
+            self.log_signal.emit(f"CRITICAL ERROR: Master tracks directory not found: {master_tracks_directory}")
         else:
-            for target in targets_tracks:
-                self.sync_directory(src_tracks, target, dry_run)
+            for target_directory in target_tracks_directories:
+                if target_directory.strip():
+                    self.sync_basic_directory(master_tracks_directory, target_directory)
 
-        self.log(f"\n{'=' * 10} ZAKOŃCZONO {mode} {'=' * 10}\n")
+        self.log_signal.emit(f"=== FINISHED {mode_text} ===\n")
+        self.finished_signal.emit()
 
-    def sync_directory(self, dir_a, dir_b, dry_run):
-        if not os.path.exists(dir_b) and not dry_run:
-            pass
+    def sync_basic_directory(self, source_directory, target_directory):
+        if not os.path.exists(target_directory):
+            self.log_signal.emit(f"ERROR: Target unreachable: {target_directory}")
+            return
 
         try:
-            if not os.path.exists(dir_b) and dry_run:
-                dirs_b = set()
-            elif not os.path.exists(dir_b):
-                self.log(f"BŁĄD: Cel nieosiągalny: {dir_b}")
-                return
-            else:
-                dirs_b = set(os.listdir(dir_b))
+            source_items = set(os.listdir(source_directory))
+            target_items = set(os.listdir(target_directory))
 
-            try:
-                dirs_a = set(os.listdir(dir_a))
-            except Exception as e:
-                self.log(f"Błąd odczytu MASTER {dir_a}: {e}")
+            missing_items = source_items - target_items
+            if not missing_items:
+                self.log_signal.emit(f"[OK] Tracks up to date for: {target_directory}")
                 return
 
-            added = []
-            removed = []
+            for item in missing_items:
+                source_path = os.path.join(source_directory, item)
+                target_path = os.path.join(target_directory, item)
 
-            for d in dirs_a - dirs_b:
-                src = os.path.join(dir_a, d)
-                dst = os.path.join(dir_b, d)
-
-                if os.path.isdir(src):
-                    if dry_run:
-                        self.log(f"[+] (Test) Skopiowałbym: {d}")
+                if os.path.isdir(source_path):
+                    if self.dry_run:
+                        self.log_signal.emit(f"[TEST] Would copy track: '{item}' to {target_directory}")
                     else:
-                        self.log(f"[+] Kopiuję: {d}")
+                        self.log_signal.emit(f"[+] Copying track: '{item}' to {target_directory}")
                         try:
-                            shutil.copytree(src, dst)
-                        except Exception as e:
-                            self.log(f"   BŁĄD kopiowania {d}: {e}")
-                    added.append(d)
+                            shutil.copytree(source_path, target_path)
+                        except Exception as exception:
+                            self.log_signal.emit(f"    COPY ERROR '{item}': {exception}")
+        except Exception as exception:
+            self.log_signal.emit(f"SYNC ERROR on {target_directory}: {exception}")
 
-            for d in dirs_b - dirs_a:
-                path = os.path.join(dir_b, d)
-                if os.path.isdir(path):
-                    if dry_run:
-                        self.log(f"[-] (Test) Usunąłbym: {d}")
+    def sync_cars_directory(self, source_directory, target_directory):
+        if not os.path.exists(target_directory):
+            self.log_signal.emit(f"ERROR: Target unreachable: {target_directory}")
+            return
+
+        try:
+            source_cars = set(os.listdir(source_directory))
+            target_cars = set(os.listdir(target_directory))
+
+            missing_cars = source_cars - target_cars
+            common_cars = source_cars.intersection(target_cars)
+
+            changes_found = False
+
+            for car in missing_cars:
+                source_path = os.path.join(source_directory, car)
+                target_path = os.path.join(target_directory, car)
+
+                if os.path.isdir(source_path):
+                    changes_found = True
+                    if self.dry_run:
+                        self.log_signal.emit(f"[TEST] Would copy car: '{car}' to {target_directory}")
                     else:
-                        self.log(f"[-] Usuwam: {d}")
+                        self.log_signal.emit(f"[+] Copying car: '{car}' to {target_directory}")
                         try:
-                            shutil.rmtree(path)
-                        except Exception as e:
-                            self.log(f"   BŁĄD usuwania {d}: {e}")
-                    removed.append(d)
+                            shutil.copytree(source_path, target_path)
+                        except Exception as exception:
+                            self.log_signal.emit(f"    COPY ERROR '{car}': {exception}")
 
-            # Raport dla danego stanowiska
-            if added or removed:
-                self.log(f"--- CEL: {dir_b} ---")
-                if added: self.log(f"   Do skopiowania: {len(added)}")
-                if removed: self.log(f"   Do usunięcia: {len(removed)}")
-            else:
-                self.log(f"OK (Zgodne): {dir_b}")
+            for car in common_cars:
+                source_skins_directory = os.path.join(source_directory, car, "skins")
+                target_skins_directory = os.path.join(target_directory, car, "skins")
 
-        except Exception as e:
-            self.log(f"KRYTYCZNY BŁĄD SYNC na {dir_b}: {e}")
+                if os.path.exists(source_skins_directory) and os.path.exists(target_skins_directory):
+                    source_skins = set(os.listdir(source_skins_directory))
+                    target_skins = set(os.listdir(target_skins_directory))
+
+                    missing_skins = source_skins - target_skins
+                    for skin in missing_skins:
+                        source_skin_path = os.path.join(source_skins_directory, skin)
+                        target_skin_path = os.path.join(target_skins_directory, skin)
+
+                        if os.path.isdir(source_skin_path):
+                            changes_found = True
+                            if self.dry_run:
+                                self.log_signal.emit(
+                                    f"[TEST] Would copy skin: '{skin}' for car '{car}' to {target_directory}")
+                            else:
+                                self.log_signal.emit(
+                                    f"[+] Copying skin: '{skin}' for car '{car}' to {target_directory}")
+                                try:
+                                    shutil.copytree(source_skin_path, target_skin_path)
+                                except Exception as exception:
+                                    self.log_signal.emit(f"    COPY ERROR '{skin}': {exception}")
+
+            if not changes_found:
+                self.log_signal.emit(f"[OK] Cars & skins up to date for: {target_directory}")
+
+        except Exception as exception:
+            self.log_signal.emit(f"SYNC ERROR on {target_directory}: {exception}")

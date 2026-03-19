@@ -9,4 +9,5 @@ node_modules/
 dist/
 build/
 *.spec
+*.txt
 last_drivers.json
