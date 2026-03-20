@@ -71,7 +71,9 @@ class GuiManager(QMainWindow):
         server_selection_layout.addWidget(QLabel("Select Server:"))
         self.server_combobox = QComboBox()
         self.server_combobox.setMinimumWidth(300)
+        # Reaguje na zmianę programową i na ręczne kliknięcie (nawet tego samego elementu)
         self.server_combobox.currentIndexChanged.connect(self.on_server_selection_changed)
+        self.server_combobox.activated.connect(self.on_server_selection_changed)
         server_selection_layout.addWidget(self.server_combobox)
 
         refresh_button = QPushButton("Refresh Servers")
@@ -291,6 +293,8 @@ class GuiManager(QMainWindow):
     def refresh_servers_list(self):
         self.append_log_message("Refreshing server list...")
         self.server_presets = self.data_provider.fetch_server_presets()
+
+        self.server_combobox.blockSignals(True)
         self.server_combobox.clear()
 
         for server_data in self.server_presets:
@@ -298,9 +302,11 @@ class GuiManager(QMainWindow):
             display_text = f"{status_indicator} {server_data['name']}"
             self.server_combobox.addItem(display_text, server_data)
 
+        self.server_combobox.blockSignals(False)
         self.append_log_message(f"Found {len(self.server_presets)} servers.")
+        self.on_server_selection_changed()
 
-    def on_server_selection_changed(self):
+    def on_server_selection_changed(self, *args):
         current_index = self.server_combobox.currentIndex()
         if current_index < 0:
             return
