@@ -71,7 +71,6 @@ class GuiManager(QMainWindow):
         server_selection_layout.addWidget(QLabel("Select Server:"))
         self.server_combobox = QComboBox()
         self.server_combobox.setMinimumWidth(300)
-        # Reaguje na zmianę programową i na ręczne kliknięcie (nawet tego samego elementu)
         self.server_combobox.currentIndexChanged.connect(self.on_server_selection_changed)
         self.server_combobox.activated.connect(self.on_server_selection_changed)
         server_selection_layout.addWidget(self.server_combobox)
@@ -114,6 +113,7 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
+            car_combobox.setPlaceholderText("Brak przypisanego auta")
             car_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_car_selection_changed(ip))
             self.rig_car_comboboxes[ip_address] = car_combobox
             self.scroll_layout.addWidget(car_combobox, row_index, 3)
@@ -205,6 +205,7 @@ class GuiManager(QMainWindow):
             rig_name = client_data.get("name")
 
             checkbox = QCheckBox()
+            checkbox.toggled.connect(lambda state, ip=ip_address: self.update_row_highlight(ip, state, is_online=True))
             self.online_rig_checkboxes[ip_address] = checkbox
             rigs_layout.addWidget(checkbox, row_index, 0)
 
@@ -277,11 +278,24 @@ class GuiManager(QMainWindow):
         self.log_display_area.append(message)
         self.config_manager.write_log("GUI", message)
 
+    def update_row_highlight(self, ip_address, state, is_online=False):
+        if is_online:
+            name_input = self.online_rig_name_inputs.get(ip_address)
+        else:
+            name_input = self.rig_name_inputs.get(ip_address)
+
+        if name_input:
+            if state:
+                name_input.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold;")
+            else:
+                name_input.setStyleSheet("")
+
     def toggle_all_checkboxes(self, state):
-        for checkbox in self.rig_checkboxes.values():
+        for ip, checkbox in self.rig_checkboxes.items():
             checkbox.blockSignals(True)
             checkbox.setChecked(state)
             checkbox.blockSignals(False)
+            self.update_row_highlight(ip, state)
 
         if state:
             self.smart_distribute_cars()
@@ -497,6 +511,7 @@ class GuiManager(QMainWindow):
         self.recalc_labels_only()
 
     def on_rig_checkbox_toggled(self, ip_address, state):
+        self.update_row_highlight(ip_address, state)
         if state and not self.rig_assigned_slots.get(ip_address):
             self.assign_next_available_car(ip_address)
         elif not state:
