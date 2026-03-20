@@ -2,6 +2,7 @@ import os
 import json
 import configparser
 import socket
+import urllib.request
 
 
 class DataProvider:
@@ -104,6 +105,16 @@ class DataProvider:
                 continue
 
         return servers_list
+
+    def fetch_online_server_info(self, ip, http_port):
+        url = f"http://{ip}:{http_port}/INFO"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                return data
+        except Exception as e:
+            return {"error": str(e)}
 
     def fetch_car_display_name(self, car_identifier):
         if car_identifier in self.car_names_cache:

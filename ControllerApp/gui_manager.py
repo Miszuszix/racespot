@@ -16,17 +16,23 @@ class GuiManager(QMainWindow):
         self.data_provider = data_provider
         self.network_manager = network_manager
 
+        # Pamięć dla LAN
         self.server_presets = []
         self.rig_checkboxes = {}
         self.rig_name_inputs = {}
         self.rig_car_comboboxes = {}
         self.rig_skin_comboboxes = {}
-
         self.current_server_slots = []
         self.rig_assigned_slots = {}
 
+        # Pamięć dla ONLINE
+        self.current_online_slots = []
+        self.online_assigned_slots = {}
+        self.current_online_info = None
         self.online_rig_checkboxes = {}
         self.online_rig_name_inputs = {}
+        self.online_rig_car_comboboxes = {}
+        self.online_rig_skin_comboboxes = {}
 
         self.settings_inputs = {}
         self.rig_ip_inputs = []
@@ -178,43 +184,83 @@ class GuiManager(QMainWindow):
         connection_layout.addWidget(self.online_ip_input, 0, 1)
 
         connection_layout.addWidget(QLabel("HTTP Port:"), 0, 2)
-        self.online_port_input = QLineEdit()
+        self.online_port_input = QLineEdit("8081")
         connection_layout.addWidget(self.online_port_input, 0, 3)
 
         connection_layout.addWidget(QLabel("Server Password:"), 1, 0)
         self.online_password_input = QLineEdit()
         connection_layout.addWidget(self.online_password_input, 1, 1)
 
-        connection_layout.addWidget(QLabel("Car ID:"), 1, 2)
-        self.online_car_input = QLineEdit()
-        connection_layout.addWidget(self.online_car_input, 1, 3)
+        fetch_online_button = QPushButton("Fetch Server Data")
+        fetch_online_button.setStyleSheet("background-color: #f57c00; color: white; font-weight: bold;")
+        fetch_online_button.clicked.connect(self.fetch_online_data)
+        connection_layout.addWidget(fetch_online_button, 1, 2, 1, 2)
+
+        self.online_server_info_label = QLabel("Not connected. Enter IP and Port, then click 'Fetch Server Data'.")
+        self.online_server_info_label.setStyleSheet("color: #aaaaaa; font-style: italic;")
+        connection_layout.addWidget(self.online_server_info_label, 2, 0, 1, 4)
 
         layout.addWidget(connection_group)
 
         rigs_group = QGroupBox("Rigs Selection")
-        rigs_layout = QGridLayout(rigs_group)
+        rigs_layout = QVBoxLayout(rigs_group)
 
-        headers = ["Select", "Rig", "Driver Name"]
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        self.online_scroll_layout = QGridLayout(scroll_content)
+
+        headers = ["Select", "Rig", "Driver Name", "Car (Available/Total)", "Skin Selection"]
         for column_index, header_text in enumerate(headers):
-            rigs_layout.addWidget(QLabel(header_text), 0, column_index)
+            self.online_scroll_layout.addWidget(QLabel(header_text), 0, column_index)
 
         clients_list = self.config_manager.get("clients", [])
         for row_index, client_data in enumerate(clients_list, start=1):
             ip_address = client_data.get("ip")
             rig_name = client_data.get("name")
 
-            checkbox = QCheckBox()
-            checkbox.toggled.connect(lambda state, ip=ip_address: self.update_row_highlight(ip, state, is_online=True))
-            self.online_rig_checkboxes[ip_address] = checkbox
-            rigs_layout.addWidget(checkbox, row_index, 0)
+            self.online_assigned_slots[ip_address] = None
 
-            rigs_layout.addWidget(QLabel(rig_name), row_index, 1)
+            checkbox = QCheckBox()
+            checkbox.toggled.connect(lambda state, ip=ip_address: self.on_online_rig_checkbox_toggled(ip, state))
+            self.online_rig_checkboxes[ip_address] = checkbox
+            self.online_scroll_layout.addWidget(checkbox, row_index, 0)
+
+            self.online_scroll_layout.addWidget(QLabel(rig_name), row_index, 1)
 
             name_input = QLineEdit()
             self.online_rig_name_inputs[ip_address] = name_input
-            rigs_layout.addWidget(name_input, row_index, 2)
+            self.online_scroll_layout.addWidget(name_input, row_index, 2)
 
-        rigs_layout.setRowStretch(len(clients_list) + 1, 1)
+            car_combobox = QComboBox()
+            car_combobox.setMinimumWidth(300)
+            car_combobox.setPlaceholderText("Brak przypisanego auta")
+            car_combobox.currentIndexChanged.connect(
+                lambda index, ip=ip_address: self.on_online_car_selection_changed(ip))
+            self.online_rig_car_comboboxes[ip_address] = car_combobox
+            self.online_scroll_layout.addWidget(car_combobox, row_index, 3)
+
+            skin_combobox = QComboBox()
+            skin_combobox.setMinimumWidth(250)
+            skin_combobox.setPlaceholderText("-")
+            skin_combobox.currentIndexChanged.connect(
+                lambda index, ip=ip_address: self.on_online_skin_selection_changed(ip))
+            self.online_rig_skin_comboboxes[ip_address] = skin_combobox
+            self.online_scroll_layout.addWidget(skin_combobox, row_index, 4)
+
+        self.online_scroll_layout.setRowStretch(len(clients_list) + 1, 1)
+        scroll_area.setWidget(scroll_content)
+        rigs_layout.addWidget(scroll_area)
+
+        buttons_layout = QHBoxLayout()
+        select_all_button = QPushButton("Select All")
+        select_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(True))
+        deselect_all_button = QPushButton("Deselect All")
+        deselect_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(False))
+        buttons_layout.addWidget(select_all_button)
+        buttons_layout.addWidget(deselect_all_button)
+        buttons_layout.addStretch()
+        rigs_layout.addLayout(buttons_layout)
 
         layout.addWidget(rigs_group)
         layout.addStretch()
@@ -289,6 +335,8 @@ class GuiManager(QMainWindow):
             else:
                 name_input.setStyleSheet("")
 
+    # --- LAN LOGIC ---
+
     def toggle_all_checkboxes(self, state):
         for ip, checkbox in self.rig_checkboxes.items():
             checkbox.blockSignals(True)
@@ -332,7 +380,6 @@ class GuiManager(QMainWindow):
 
         self.server_combobox.blockSignals(False)
         self.append_log_message(f"Found {len(self.server_presets)} servers.")
-
         self.on_server_selection_changed()
 
     def on_server_selection_changed(self, *args):
@@ -458,12 +505,10 @@ class GuiManager(QMainWindow):
 
     def on_car_selection_changed(self, ip_address):
         combobox = self.rig_car_comboboxes.get(ip_address)
-        if not combobox:
-            return
+        if not combobox: return
 
         current_index = combobox.currentIndex()
-        if current_index < 0:
-            return
+        if current_index < 0: return
 
         new_model_id = combobox.itemData(current_index)
         current_slot = self.rig_assigned_slots.get(ip_address)
@@ -492,18 +537,14 @@ class GuiManager(QMainWindow):
 
     def on_skin_selection_changed(self, ip_address):
         combobox = self.rig_skin_comboboxes.get(ip_address)
-        if not combobox:
-            return
-
+        if not combobox: return
         current_index = combobox.currentIndex()
-        if current_index < 0:
-            return
+        if current_index < 0: return
 
         new_skin = combobox.itemData(current_index)
         current_slot = self.rig_assigned_slots.get(ip_address)
 
-        if not current_slot or current_slot["skin"] == new_skin:
-            return
+        if not current_slot or current_slot["skin"] == new_skin: return
 
         model_id = current_slot["model_id"]
         assigned_slots = list(self.rig_assigned_slots.values())
@@ -528,17 +569,231 @@ class GuiManager(QMainWindow):
     def on_rig_checkbox_toggled(self, ip_address, state):
         self.update_row_highlight(ip_address, state)
         if state and not self.rig_assigned_slots.get(ip_address):
-            self.assign_next_available_car(ip_address)
+            assigned_slots = list(self.rig_assigned_slots.values())
+            for slot in self.current_server_slots:
+                if slot not in assigned_slots:
+                    self.rig_assigned_slots[ip_address] = slot
+                    break
         elif not state:
             self.rig_assigned_slots[ip_address] = None
         self.recalc_labels_only()
 
-    def assign_next_available_car(self, target_ip):
-        assigned_slots = list(self.rig_assigned_slots.values())
-        for slot in self.current_server_slots:
-            if slot not in assigned_slots:
-                self.rig_assigned_slots[target_ip] = slot
-                return
+    # --- ONLINE LOGIC ---
+
+    def fetch_online_data(self):
+        ip = self.online_ip_input.text().strip()
+        port = self.online_port_input.text().strip()
+
+        if not ip or not port:
+            self.append_log_message("Error: Please provide both IP and HTTP Port.")
+            return
+
+        self.append_log_message(f"Connecting to remote server API {ip}:{port}...")
+        data = self.data_provider.fetch_online_server_info(ip, port)
+
+        if not data or "error" in data:
+            self.append_log_message(f"Failed to fetch server data: {data.get('error', 'Unknown error')}")
+            self.online_server_info_label.setText("Connection failed. Check IP, Port and internet connection.")
+            self.current_online_slots = []
+            return
+
+        name = data.get("name", "Unknown Server")
+        track = data.get("track", "unknown")
+        cars = data.get("cars", [])
+        udp_port = data.get("port", 9600)
+        tcp_port = data.get("tcp_port", 9600)
+        clients = data.get("clients", 0)
+        maxclients = data.get("maxclients", 0)
+
+        self.current_online_info = {
+            "ip": ip,
+            "udp_port": udp_port,
+            "tcp_port": tcp_port,
+            "http_port": int(port),
+            "track": track,
+            "name": name
+        }
+
+        self.online_server_info_label.setText(f"Connected: {name} | Track: {track} | Players: {clients}/{maxclients}")
+        self.append_log_message(f"Online server loaded successfully! Found {len(cars)} car slots.")
+
+        self.current_online_slots = []
+        for idx, car in enumerate(cars):
+            self.current_online_slots.append({
+                "slot_id": f"CAR_{idx}",
+                "model_id": car,
+                "skin": ""
+            })
+
+        for ip_address in self.online_rig_car_comboboxes.keys():
+            self.online_assigned_slots[ip_address] = None
+
+        self.smart_distribute_cars_online()
+
+    def toggle_all_checkboxes_online(self, state):
+        for ip, checkbox in self.online_rig_checkboxes.items():
+            checkbox.blockSignals(True)
+            checkbox.setChecked(state)
+            checkbox.blockSignals(False)
+            self.update_row_highlight(ip, state, is_online=True)
+
+        if state:
+            self.smart_distribute_cars_online()
+        else:
+            for ip_address in self.online_assigned_slots:
+                self.online_assigned_slots[ip_address] = None
+            self.recalc_labels_only_online()
+
+    def smart_distribute_cars_online(self):
+        if not self.current_online_slots:
+            return
+
+        assigned_slots = [slot for slot in self.online_assigned_slots.values() if slot is not None]
+        unassigned_slots = [slot for slot in self.current_online_slots if slot not in assigned_slots]
+
+        for ip_address, checkbox in self.online_rig_checkboxes.items():
+            if checkbox.isChecked():
+                if not self.online_assigned_slots.get(ip_address):
+                    if unassigned_slots:
+                        self.online_assigned_slots[ip_address] = unassigned_slots.pop(0)
+            else:
+                if self.online_assigned_slots.get(ip_address):
+                    unassigned_slots.append(self.online_assigned_slots[ip_address])
+                    self.online_assigned_slots[ip_address] = None
+
+        self.recalc_labels_only_online()
+
+    def recalc_labels_only_online(self):
+        if not self.current_online_slots:
+            for ip_address, combobox in self.online_rig_car_comboboxes.items():
+                combobox.blockSignals(True)
+                combobox.clear()
+                combobox.setCurrentIndex(-1)
+                combobox.blockSignals(False)
+
+                skin_combobox = self.online_rig_skin_comboboxes[ip_address]
+                skin_combobox.blockSignals(True)
+                skin_combobox.clear()
+                skin_combobox.setCurrentIndex(-1)
+                skin_combobox.blockSignals(False)
+            return
+
+        model_totals = Counter(slot["model_id"] for slot in self.current_online_slots)
+        assigned_slots = [slot for slot in self.online_assigned_slots.values() if slot is not None]
+        model_used = Counter(slot["model_id"] for slot in assigned_slots)
+        unique_model_ids = sorted(model_totals.keys())
+
+        for ip_address, car_combobox in self.online_rig_car_comboboxes.items():
+            car_combobox.blockSignals(True)
+            car_combobox.clear()
+
+            is_checked = self.online_rig_checkboxes[ip_address].isChecked()
+            current_slot = self.online_assigned_slots.get(ip_address)
+
+            if is_checked:
+                index_to_select = -1
+                for idx, model_id in enumerate(unique_model_ids):
+                    total = model_totals[model_id]
+                    used = model_used[model_id]
+                    left = total - used
+                    if left < 0: left = 0
+
+                    display_name = self.data_provider.fetch_car_display_name(model_id)
+                    item_text = f"{display_name} ({left}/{total})"
+                    car_combobox.addItem(item_text, model_id)
+
+                    if current_slot and current_slot["model_id"] == model_id:
+                        index_to_select = idx
+
+                car_combobox.setCurrentIndex(index_to_select)
+            else:
+                car_combobox.setCurrentIndex(-1)
+
+            car_combobox.blockSignals(False)
+
+            skin_combobox = self.online_rig_skin_comboboxes[ip_address]
+            skin_combobox.blockSignals(True)
+            skin_combobox.clear()
+
+            if is_checked and current_slot:
+                current_model = current_slot["model_id"]
+                current_skin = current_slot.get("skin", "")
+
+                available_nice_skins = self.data_provider.fetch_available_skins(current_model)
+
+                index_to_select_skin = -1
+                for idx, skin_data in enumerate(available_nice_skins):
+                    skin_folder = skin_data["folder_name"]
+                    display_name = skin_data["display_name"]
+
+                    skin_combobox.addItem(display_name, skin_folder)
+
+                    if skin_folder == current_skin or (not current_skin and idx == 0):
+                        index_to_select_skin = idx
+                        if not current_skin:
+                            current_slot["skin"] = skin_folder
+
+                skin_combobox.setCurrentIndex(index_to_select_skin)
+            else:
+                skin_combobox.setCurrentIndex(-1)
+
+            skin_combobox.blockSignals(False)
+
+    def on_online_car_selection_changed(self, ip_address):
+        combobox = self.online_rig_car_comboboxes.get(ip_address)
+        if not combobox: return
+        current_index = combobox.currentIndex()
+        if current_index < 0: return
+
+        new_model_id = combobox.itemData(current_index)
+        current_slot = self.online_assigned_slots.get(ip_address)
+
+        if current_slot and current_slot["model_id"] == new_model_id:
+            return
+
+        assigned_slots = list(self.online_assigned_slots.values())
+        target_slot = None
+        for slot in self.current_online_slots:
+            if slot["model_id"] == new_model_id and slot not in assigned_slots:
+                target_slot = slot
+                break
+
+        if target_slot:
+            self.online_assigned_slots[ip_address] = target_slot
+        else:
+            for other_ip, other_slot in self.online_assigned_slots.items():
+                if other_slot and other_slot["model_id"] == new_model_id:
+                    self.online_assigned_slots[other_ip] = current_slot
+                    self.online_assigned_slots[ip_address] = other_slot
+                    break
+
+        self.recalc_labels_only_online()
+
+    def on_online_skin_selection_changed(self, ip_address):
+        combobox = self.online_rig_skin_comboboxes.get(ip_address)
+        if not combobox: return
+        current_index = combobox.currentIndex()
+        if current_index < 0: return
+
+        new_skin = combobox.itemData(current_index)
+        current_slot = self.online_assigned_slots.get(ip_address)
+
+        if current_slot:
+            current_slot["skin"] = new_skin
+
+    def on_online_rig_checkbox_toggled(self, ip_address, state):
+        self.update_row_highlight(ip_address, state, is_online=True)
+        if state and not self.online_assigned_slots.get(ip_address):
+            assigned_slots = list(self.online_assigned_slots.values())
+            for slot in self.current_online_slots:
+                if slot not in assigned_slots:
+                    self.online_assigned_slots[ip_address] = slot
+                    break
+        elif not state:
+            self.online_assigned_slots[ip_address] = None
+        self.recalc_labels_only_online()
+
+    # --- GENERAL ---
 
     def load_drivers_history(self):
         history = self.data_provider.load_drivers_history()
@@ -604,37 +859,43 @@ class GuiManager(QMainWindow):
         self.dispatch_network_commands(targets_data, "run")
 
     def execute_start_race_online(self):
-        server_ip = self.online_ip_input.text().strip()
-        http_port = self.online_port_input.text().strip()
-        password = self.online_password_input.text().strip()
-        car_identifier = self.online_car_input.text().strip()
-
-        if not server_ip or not http_port or not car_identifier:
-            self.append_log_message("Error: Missing online server details.")
+        if not self.current_online_info:
+            self.append_log_message("Error: No online server data fetched. Fetch data first.")
             return
+
+        password = self.online_password_input.text().strip()
 
         targets_data = []
         for ip_address, checkbox in self.online_rig_checkboxes.items():
             if checkbox.isChecked():
                 driver_name = self.online_rig_name_inputs[ip_address].text().strip()
+                assigned_slot = self.online_assigned_slots.get(ip_address)
+
+                if not assigned_slot:
+                    continue
+
+                model_id = assigned_slot["model_id"]
+                skin = assigned_slot.get("skin", "default")
+
                 targets_data.append({
                     "ip": ip_address,
                     "payload": {
                         "server_data": {
-                            "ip": server_ip,
-                            "udp_port": 9600,
-                            "http_port": int(http_port),
+                            "ip": self.current_online_info["ip"],
+                            "udp_port": self.current_online_info["udp_port"],
+                            "tcp_port": self.current_online_info["tcp_port"],
+                            "http_port": self.current_online_info["http_port"],
                             "password": password,
-                            "server_name": "Online Server"
+                            "server_name": self.current_online_info["name"]
                         },
                         "track_data": {
-                            "track": "imola",
+                            "track": self.current_online_info["track"],
                             "config_track": ""
                         },
                         "car_data": {
-                            "model_id": car_identifier,
+                            "model_id": model_id,
                             "driver_name": driver_name,
-                            "skin": "default"
+                            "skin": skin
                         }
                     }
                 })
