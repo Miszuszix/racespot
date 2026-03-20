@@ -697,3 +697,7 @@ class GuiManager(QMainWindow):
 
         self.append_log_message(
             "Configuration saved successfully. Please restart application to apply new rigs configuration.")
+
+    def close_event(self, event):
+        self.save_drivers_history()
+        event.accept()
