@@ -41,6 +41,8 @@ class GuiManager(QMainWindow):
         self.resize(1200, 900)
         self.setup_user_interface()
         self.refresh_servers_list()
+
+        self.fetch_online_data()
         self.load_drivers_history()
 
     def setup_user_interface(self):
@@ -119,6 +121,7 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
+            car_combobox.setPlaceholderText("Brak przypisanego auta")
             car_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_car_selection_changed(ip))
             self.rig_car_comboboxes[ip_address] = car_combobox
             self.scroll_layout.addWidget(car_combobox, row_index, 3)
@@ -176,29 +179,41 @@ class GuiManager(QMainWindow):
     def build_online_tab(self):
         layout = QVBoxLayout(self.online_tab)
 
-        connection_group = QGroupBox("Online Server Connection")
-        connection_layout = QGridLayout(connection_group)
+        connection_group = QGroupBox("Online Server Selection")
+        connection_layout = QVBoxLayout(connection_group)
 
-        connection_layout.addWidget(QLabel("Server IP:"), 0, 0)
-        self.online_ip_input = QLineEdit()
-        connection_layout.addWidget(self.online_ip_input, 0, 1)
+        top_row = QHBoxLayout()
+        top_row.addWidget(QLabel("Wybierz Serwer Online:"))
 
-        connection_layout.addWidget(QLabel("HTTP Port:"), 0, 2)
-        self.online_port_input = QLineEdit("8081")
-        connection_layout.addWidget(self.online_port_input, 0, 3)
+        self.online_server_combobox = QComboBox()
+        self.online_server_combobox.setMinimumWidth(300)
 
-        connection_layout.addWidget(QLabel("Server Password:"), 1, 0)
-        self.online_password_input = QLineEdit()
-        connection_layout.addWidget(self.online_password_input, 1, 1)
+        self.hardcoded_online_servers = [
+            {"display": "Serwer #1 (Port 8011)", "ip": "145.59.35.158", "http_port": "8011",
+             "password": "twoje_haslo_1"},
+            {"display": "Serwer #2 (Port 8012)", "ip": "145.59.35.158", "http_port": "8012",
+             "password": "twoje_haslo_2"},
+            {"display": "Serwer #3 (Port 8013)", "ip": "145.59.35.158", "http_port": "8013",
+             "password": "twoje_haslo_3"}
+        ]
 
-        fetch_online_button = QPushButton("Fetch Server Data")
-        fetch_online_button.setStyleSheet("background-color: #f57c00; color: white; font-weight: bold;")
-        fetch_online_button.clicked.connect(self.fetch_online_data)
-        connection_layout.addWidget(fetch_online_button, 1, 2, 1, 2)
+        for srv in self.hardcoded_online_servers:
+            self.online_server_combobox.addItem(srv["display"], srv)
 
-        self.online_server_info_label = QLabel("Not connected. Enter IP and Port, then click 'Fetch Server Data'.")
-        self.online_server_info_label.setStyleSheet("color: #aaaaaa; font-style: italic;")
-        connection_layout.addWidget(self.online_server_info_label, 2, 0, 1, 4)
+        self.online_server_combobox.currentIndexChanged.connect(self.fetch_online_data)
+        self.online_server_combobox.activated.connect(self.fetch_online_data)
+        top_row.addWidget(self.online_server_combobox)
+
+        fetch_button = QPushButton("Odśwież (Refresh)")
+        fetch_button.clicked.connect(self.fetch_online_data)
+        top_row.addWidget(fetch_button)
+        top_row.addStretch()
+
+        connection_layout.addLayout(top_row)
+
+        self.online_server_info_label = QLabel("Trwa łączenie z serwerem...")
+        self.online_server_info_label.setStyleSheet("color: #aaaaaa; font-style: italic; margin-top: 5px;")
+        connection_layout.addWidget(self.online_server_info_label)
 
         layout.addWidget(connection_group)
 
@@ -265,11 +280,20 @@ class GuiManager(QMainWindow):
         layout.addWidget(rigs_group)
         layout.addStretch()
 
-        start_online_button = QPushButton("START RACE (ONLINE)")
+        action_buttons_layout = QHBoxLayout()
+        start_online_button = QPushButton("DOŁĄCZ DO SERWERA (JOIN)")
         start_online_button.setMinimumHeight(50)
         start_online_button.setStyleSheet("background-color: #1565c0; color: white; font-weight: bold;")
         start_online_button.clicked.connect(self.execute_start_race_online)
-        layout.addWidget(start_online_button)
+
+        stop_online_button = QPushButton("WYJDŹ Z SERWERA (LEAVE)")
+        stop_online_button.setMinimumHeight(50)
+        stop_online_button.setStyleSheet("background-color: #c62828; color: white; font-weight: bold;")
+        stop_online_button.clicked.connect(self.execute_stop_race)
+
+        action_buttons_layout.addWidget(start_online_button)
+        action_buttons_layout.addWidget(stop_online_button)
+        layout.addLayout(action_buttons_layout)
 
     def build_settings_tab(self):
         layout = QVBoxLayout(self.settings_tab)
@@ -580,20 +604,21 @@ class GuiManager(QMainWindow):
 
     # --- ONLINE LOGIC ---
 
-    def fetch_online_data(self):
-        ip = self.online_ip_input.text().strip()
-        port = self.online_port_input.text().strip()
+    def fetch_online_data(self, *args):
+        current_index = self.online_server_combobox.currentIndex()
+        if current_index < 0: return
 
-        if not ip or not port:
-            self.append_log_message("Error: Please provide both IP and HTTP Port.")
-            return
+        srv = self.online_server_combobox.itemData(current_index)
+        ip = srv["ip"]
+        port = srv["http_port"]
+        password = srv["password"]
 
         self.append_log_message(f"Connecting to remote server API {ip}:{port}...")
         data = self.data_provider.fetch_online_server_info(ip, port)
 
         if not data or "error" in data:
             self.append_log_message(f"Failed to fetch server data: {data.get('error', 'Unknown error')}")
-            self.online_server_info_label.setText("Connection failed. Check IP, Port and internet connection.")
+            self.online_server_info_label.setText("Brak połączenia. Upewnij się, że serwer jest włączony.")
             self.current_online_slots = []
             return
 
@@ -601,7 +626,7 @@ class GuiManager(QMainWindow):
         track = data.get("track", "unknown")
         cars = data.get("cars", [])
         udp_port = data.get("port", 9600)
-        tcp_port = data.get("tcp_port", 9600)
+        tcp_port = data.get("tport", 9600)
         clients = data.get("clients", 0)
         maxclients = data.get("maxclients", 0)
 
@@ -610,11 +635,12 @@ class GuiManager(QMainWindow):
             "udp_port": udp_port,
             "tcp_port": tcp_port,
             "http_port": int(port),
+            "password": password,
             "track": track,
             "name": name
         }
 
-        self.online_server_info_label.setText(f"Connected: {name} | Track: {track} | Players: {clients}/{maxclients}")
+        self.online_server_info_label.setText(f"Połączono: {name}  |  Tor: {track}  |  Graczy: {clients}/{maxclients}")
         self.append_log_message(f"Online server loaded successfully! Found {len(cars)} car slots.")
 
         self.current_online_slots = []
@@ -863,7 +889,8 @@ class GuiManager(QMainWindow):
             self.append_log_message("Error: No online server data fetched. Fetch data first.")
             return
 
-        password = self.online_password_input.text().strip()
+        # Używamy zhardcodowanego hasła dla wybranego serwera
+        password = self.current_online_info["password"]
 
         targets_data = []
         for ip_address, checkbox in self.online_rig_checkboxes.items():
