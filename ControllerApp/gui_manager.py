@@ -1,4 +1,5 @@
 import os
+import json
 from collections import Counter
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
@@ -15,6 +16,10 @@ class GuiManager(QMainWindow):
         self.config_manager = config_manager
         self.data_provider = data_provider
         self.network_manager = network_manager
+
+        # Wczytanie tekstów GUI
+        self.strings = {}
+        self.load_strings()
 
         # Pamięć dla LAN
         self.server_presets = []
@@ -37,14 +42,30 @@ class GuiManager(QMainWindow):
         self.settings_inputs = {}
         self.rig_ip_inputs = []
 
-        self.setWindowTitle("Racespot - Race Control Center")
+        self.setWindowTitle(self.t("window_title"))
         self.resize(1200, 900)
         self.setup_user_interface()
         self.refresh_servers_list()
 
-        # Inicjujemy pobranie nazw dla serwerów Online i rozdzielenie aut
+        # Inicjujemy pobranie danych dla serwerów Online
         self.refresh_online_servers_list()
         self.load_drivers_history()
+
+    def load_strings(self):
+        try:
+            with open("strings.json", "r", encoding="utf-8") as f:
+                self.strings = json.load(f)
+        except Exception as e:
+            print(f"Warning: Could not load strings.json: {e}")
+
+    def t(self, key, *args):
+        text = self.strings.get(key, key)
+        if args:
+            try:
+                text = text.format(*args)
+            except Exception:
+                pass
+        return text
 
     def setup_user_interface(self):
         main_widget = QWidget()
@@ -58,9 +79,9 @@ class GuiManager(QMainWindow):
         self.online_tab = QWidget()
         self.settings_tab = QWidget()
 
-        self.tabs_container.addTab(self.lan_tab, "LAN Servers")
-        self.tabs_container.addTab(self.online_tab, "Online Servers")
-        self.tabs_container.addTab(self.settings_tab, "Settings")
+        self.tabs_container.addTab(self.lan_tab, self.t("tab_lan"))
+        self.tabs_container.addTab(self.online_tab, self.t("tab_online"))
+        self.tabs_container.addTab(self.settings_tab, self.t("tab_settings"))
 
         self.build_lan_tab()
         self.build_online_tab()
@@ -74,23 +95,23 @@ class GuiManager(QMainWindow):
     def build_lan_tab(self):
         layout = QVBoxLayout(self.lan_tab)
 
-        server_selection_group = QGroupBox("Server Configuration")
+        server_selection_group = QGroupBox(self.t("lan_server_config"))
         server_selection_layout = QHBoxLayout(server_selection_group)
 
-        server_selection_layout.addWidget(QLabel("Select Server:"))
+        server_selection_layout.addWidget(QLabel(self.t("lan_select_server")))
         self.server_combobox = QComboBox()
         self.server_combobox.setMinimumWidth(300)
         self.server_combobox.currentIndexChanged.connect(self.on_server_selection_changed)
         self.server_combobox.activated.connect(self.on_server_selection_changed)
         server_selection_layout.addWidget(self.server_combobox)
 
-        refresh_button = QPushButton("Refresh Servers")
+        refresh_button = QPushButton(self.t("lan_btn_refresh"))
         refresh_button.clicked.connect(self.refresh_servers_list)
         server_selection_layout.addWidget(refresh_button)
         server_selection_layout.addStretch()
         layout.addWidget(server_selection_group)
 
-        rigs_group = QGroupBox("Rigs Configuration")
+        rigs_group = QGroupBox(self.t("lan_rigs_config"))
         rigs_layout = QVBoxLayout(rigs_group)
 
         scroll_area = QScrollArea()
@@ -98,7 +119,8 @@ class GuiManager(QMainWindow):
         scroll_content = QWidget()
         self.scroll_layout = QGridLayout(scroll_content)
 
-        headers = ["Select", "Rig", "Driver Name", "Car (Available/Total)", "Skin (Available/Total)"]
+        headers = [self.t("table_select"), self.t("table_rig"), self.t("table_driver"), self.t("table_car"),
+                   self.t("table_skin")]
         for column_index, header_text in enumerate(headers):
             self.scroll_layout.addWidget(QLabel(header_text), 0, column_index)
 
@@ -128,7 +150,7 @@ class GuiManager(QMainWindow):
 
             skin_combobox = QComboBox()
             skin_combobox.setMinimumWidth(250)
-            skin_combobox.setPlaceholderText("-")
+            skin_combobox.setPlaceholderText(self.t("combo_no_skin"))
             skin_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_skin_selection_changed(ip))
             self.rig_skin_comboboxes[ip_address] = skin_combobox
             self.scroll_layout.addWidget(skin_combobox, row_index, 4)
@@ -139,16 +161,16 @@ class GuiManager(QMainWindow):
         rigs_layout.addWidget(scroll_area)
 
         buttons_layout = QHBoxLayout()
-        select_all_button = QPushButton("Select All")
+        select_all_button = QPushButton(self.t("btn_select_all"))
         select_all_button.clicked.connect(lambda: self.toggle_all_checkboxes(True))
-        deselect_all_button = QPushButton("Deselect All")
+        deselect_all_button = QPushButton(self.t("btn_deselect_all"))
         deselect_all_button.clicked.connect(lambda: self.toggle_all_checkboxes(False))
 
-        test_sync_button = QPushButton("Test Synchronization")
+        test_sync_button = QPushButton(self.t("btn_test_sync"))
         test_sync_button.setStyleSheet("background-color: #555555; color: white;")
         test_sync_button.clicked.connect(self.start_test_synchronization)
 
-        full_sync_button = QPushButton("FULL Synchronization")
+        full_sync_button = QPushButton(self.t("btn_full_sync"))
         full_sync_button.setStyleSheet("background-color: #f57c00; color: white; font-weight: bold;")
         full_sync_button.clicked.connect(self.start_synchronization)
 
@@ -162,12 +184,12 @@ class GuiManager(QMainWindow):
         layout.addWidget(rigs_group)
 
         action_buttons_layout = QHBoxLayout()
-        start_race_button = QPushButton("START RACE (LAN)")
+        start_race_button = QPushButton(self.t("lan_btn_start"))
         start_race_button.setMinimumHeight(50)
         start_race_button.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold;")
         start_race_button.clicked.connect(self.execute_start_race_lan)
 
-        stop_race_button = QPushButton("STOP SELECTED RIGS")
+        stop_race_button = QPushButton(self.t("lan_btn_stop"))
         stop_race_button.setMinimumHeight(50)
         stop_race_button.setStyleSheet("background-color: #c62828; color: white; font-weight: bold;")
         stop_race_button.clicked.connect(self.execute_stop_race)
@@ -179,18 +201,16 @@ class GuiManager(QMainWindow):
     def build_online_tab(self):
         layout = QVBoxLayout(self.online_tab)
 
-        connection_group = QGroupBox("Online Server Selection")
+        connection_group = QGroupBox(self.t("online_server_selection"))
         connection_layout = QVBoxLayout(connection_group)
 
         top_row = QHBoxLayout()
-        top_row.addWidget(QLabel("Wybierz Serwer Online:"))
+        top_row.addWidget(QLabel(self.t("online_select_server")))
 
         self.online_server_combobox = QComboBox()
         self.online_server_combobox.setMinimumWidth(400)
 
-        # =========================================================
         # BAZA TWOICH SERWERÓW: Zmienione IP na poprawne 146...
-        # =========================================================
         self.hardcoded_online_servers = [
             {"ip": "146.59.35.158", "http_port": "8011", "password": "twoje_haslo_1"},
             {"ip": "146.59.35.158", "http_port": "8012", "password": "twoje_haslo_2"},
@@ -201,20 +221,20 @@ class GuiManager(QMainWindow):
         self.online_server_combobox.activated.connect(self.fetch_online_data)
         top_row.addWidget(self.online_server_combobox)
 
-        fetch_button = QPushButton("Odśwież (Refresh)")
+        fetch_button = QPushButton(self.t("online_btn_refresh"))
         fetch_button.clicked.connect(self.refresh_online_servers_list)
         top_row.addWidget(fetch_button)
         top_row.addStretch()
 
         connection_layout.addLayout(top_row)
 
-        self.online_server_info_label = QLabel("Trwa łączenie z serwerem...")
+        self.online_server_info_label = QLabel(self.t("online_connecting"))
         self.online_server_info_label.setStyleSheet("color: #aaaaaa; font-style: italic; margin-top: 5px;")
         connection_layout.addWidget(self.online_server_info_label)
 
         layout.addWidget(connection_group)
 
-        rigs_group = QGroupBox("Rigs Selection")
+        rigs_group = QGroupBox(self.t("online_rigs_selection"))
         rigs_layout = QVBoxLayout(rigs_group)
 
         scroll_area = QScrollArea()
@@ -222,7 +242,8 @@ class GuiManager(QMainWindow):
         scroll_content = QWidget()
         self.online_scroll_layout = QGridLayout(scroll_content)
 
-        headers = ["Select", "Rig", "Driver Name", "Car (Available/Total)", "Skin Selection"]
+        headers = [self.t("table_select"), self.t("table_rig"), self.t("table_driver"), self.t("table_car"),
+                   self.t("table_skin")]
         for column_index, header_text in enumerate(headers):
             self.online_scroll_layout.addWidget(QLabel(header_text), 0, column_index)
 
@@ -246,7 +267,7 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
-            car_combobox.setPlaceholderText("Brak przypisanego auta")
+            car_combobox.setPlaceholderText(self.t("combo_no_car"))
             car_combobox.currentIndexChanged.connect(
                 lambda index, ip=ip_address: self.on_online_car_selection_changed(ip))
             self.online_rig_car_comboboxes[ip_address] = car_combobox
@@ -254,7 +275,7 @@ class GuiManager(QMainWindow):
 
             skin_combobox = QComboBox()
             skin_combobox.setMinimumWidth(250)
-            skin_combobox.setPlaceholderText("-")
+            skin_combobox.setPlaceholderText(self.t("combo_no_skin"))
             skin_combobox.currentIndexChanged.connect(
                 lambda index, ip=ip_address: self.on_online_skin_selection_changed(ip))
             self.online_rig_skin_comboboxes[ip_address] = skin_combobox
@@ -265,9 +286,9 @@ class GuiManager(QMainWindow):
         rigs_layout.addWidget(scroll_area)
 
         buttons_layout = QHBoxLayout()
-        select_all_button = QPushButton("Select All")
+        select_all_button = QPushButton(self.t("btn_select_all"))
         select_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(True))
-        deselect_all_button = QPushButton("Deselect All")
+        deselect_all_button = QPushButton(self.t("btn_deselect_all"))
         deselect_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(False))
         buttons_layout.addWidget(select_all_button)
         buttons_layout.addWidget(deselect_all_button)
@@ -278,12 +299,12 @@ class GuiManager(QMainWindow):
         layout.addStretch()
 
         action_buttons_layout = QHBoxLayout()
-        start_online_button = QPushButton("DOŁĄCZ DO SERWERA (JOIN)")
+        start_online_button = QPushButton(self.t("online_btn_start"))
         start_online_button.setMinimumHeight(50)
         start_online_button.setStyleSheet("background-color: #1565c0; color: white; font-weight: bold;")
         start_online_button.clicked.connect(self.execute_start_race_online)
 
-        stop_online_button = QPushButton("WYJDŹ Z SERWERA (LEAVE)")
+        stop_online_button = QPushButton(self.t("online_btn_stop"))
         stop_online_button.setMinimumHeight(50)
         stop_online_button.setStyleSheet("background-color: #c62828; color: white; font-weight: bold;")
         stop_online_button.clicked.connect(self.execute_stop_race)
@@ -295,15 +316,15 @@ class GuiManager(QMainWindow):
     def build_settings_tab(self):
         layout = QVBoxLayout(self.settings_tab)
 
-        paths_group = QGroupBox("Global Paths & Network")
+        paths_group = QGroupBox(self.t("settings_paths_group"))
         paths_layout = QGridLayout(paths_group)
 
         settings_keys = [
-            ("ac_root_path", "Assetto Corsa Root Path:"),
-            ("master_server_ip", "Master Server IP:"),
-            ("secret_token", "Secret Token:"),
-            ("master_cars_path", "Master Cars Path:"),
-            ("master_tracks_path", "Master Tracks Path:")
+            ("ac_root_path", self.t("settings_ac_root")),
+            ("master_server_ip", self.t("settings_master_ip")),
+            ("secret_token", self.t("settings_token")),
+            ("master_cars_path", self.t("settings_cars_path")),
+            ("master_tracks_path", self.t("settings_tracks_path"))
         ]
 
         for row_index, (config_key, label_text) in enumerate(settings_keys):
@@ -314,7 +335,7 @@ class GuiManager(QMainWindow):
 
         layout.addWidget(paths_group)
 
-        rigs_ip_group = QGroupBox("Rigs IP Configuration")
+        rigs_ip_group = QGroupBox(self.t("settings_rigs_ip"))
         rigs_ip_layout = QGridLayout(rigs_ip_group)
 
         clients_list = self.config_manager.get("clients", [])
@@ -322,7 +343,7 @@ class GuiManager(QMainWindow):
 
         for i in range(1, 10):
             rig_name = f"RIG {i}"
-            label = QLabel(f"{rig_name} IP:")
+            label = QLabel(self.t("settings_rig_ip_label", rig_name))
             ip_input = QLineEdit(client_ips_map.get(rig_name, ""))
             self.rig_ip_inputs.append((rig_name, ip_input))
 
@@ -335,7 +356,7 @@ class GuiManager(QMainWindow):
         layout.addWidget(rigs_ip_group)
         layout.addStretch()
 
-        save_button = QPushButton("Save Configuration")
+        save_button = QPushButton(self.t("settings_btn_save"))
         save_button.setMinimumHeight(40)
         save_button.clicked.connect(self.save_settings)
         layout.addWidget(save_button)
@@ -373,7 +394,7 @@ class GuiManager(QMainWindow):
             self.recalc_labels_only()
 
     def refresh_servers_list(self):
-        self.append_log_message("Refreshing server list...")
+        self.append_log_message(self.t("log_refreshing_lan"))
 
         current_index = self.server_combobox.currentIndex()
         saved_folder_id = None
@@ -400,7 +421,7 @@ class GuiManager(QMainWindow):
             self.server_combobox.setCurrentIndex(index_to_restore)
 
         self.server_combobox.blockSignals(False)
-        self.append_log_message(f"Found {len(self.server_presets)} servers.")
+        self.append_log_message(self.t("log_found_servers", len(self.server_presets)))
         self.on_server_selection_changed()
 
     def on_server_selection_changed(self, *args):
@@ -602,7 +623,7 @@ class GuiManager(QMainWindow):
     # --- ONLINE LOGIC ---
 
     def refresh_online_servers_list(self):
-        self.append_log_message("Pobieranie oficjalnych nazw z serwerów online...")
+        self.append_log_message(self.t("log_fetching_online_names"))
 
         current_index = self.online_server_combobox.currentIndex()
         saved_port = None
@@ -622,10 +643,9 @@ class GuiManager(QMainWindow):
 
             data = self.data_provider.fetch_online_server_info(ip, port)
             if data and "error" not in data:
-                # Wyciąga oficjalną nazwę serwera podaną w pliku json
                 name = data.get("name", f"Serwer (Port {port})")
             else:
-                name = f"Offline / Błąd połączenia (Port {port})"
+                name = self.t("online_server_offline", port)
 
             self.online_server_combobox.addItem(name, srv)
 
@@ -647,12 +667,12 @@ class GuiManager(QMainWindow):
         port = srv["http_port"]
         password = srv["password"]
 
-        self.append_log_message(f"Connecting to remote server API {ip}:{port}...")
+        self.append_log_message(self.t("log_connecting_online", ip, port))
         data = self.data_provider.fetch_online_server_info(ip, port)
 
         if not data or "error" in data:
-            self.append_log_message(f"Failed to fetch server data: {data.get('error', 'Unknown error')}")
-            self.online_server_info_label.setText("Brak połączenia. Upewnij się, że serwer jest włączony.")
+            self.append_log_message(self.t("log_fetch_failed", data.get('error', 'Unknown error')))
+            self.online_server_info_label.setText(self.t("online_err_connection"))
             self.current_online_slots = []
             self.recalc_labels_only_online()
             return
@@ -675,8 +695,8 @@ class GuiManager(QMainWindow):
             "name": name
         }
 
-        self.online_server_info_label.setText(f"Połączono: {name}  |  Tor: {track}  |  Graczy: {clients}/{maxclients}")
-        self.append_log_message(f"Online server loaded successfully! Found {len(cars)} car slots.")
+        self.online_server_info_label.setText(self.t("online_connected_info", name, track, clients, maxclients))
+        self.append_log_message(self.t("log_online_loaded", len(cars)))
 
         self.current_online_slots = []
         for idx, car in enumerate(cars):
@@ -876,7 +896,7 @@ class GuiManager(QMainWindow):
     def execute_start_race_lan(self):
         current_index = self.server_combobox.currentIndex()
         if current_index < 0:
-            self.append_log_message("Error: No server selected.")
+            self.append_log_message(self.t("log_err_no_server"))
             return
 
         selected_server = self.server_combobox.itemData(current_index)
@@ -921,7 +941,7 @@ class GuiManager(QMainWindow):
 
     def execute_start_race_online(self):
         if not self.current_online_info:
-            self.append_log_message("Error: No online server data fetched. Fetch data first.")
+            self.append_log_message(self.t("log_no_online_data"))
             return
 
         password = self.current_online_info["password"]
@@ -975,13 +995,13 @@ class GuiManager(QMainWindow):
                 targets_data.append({"ip": ip_address, "payload": {}})
 
         if not targets_data:
-            self.append_log_message("No rigs selected for stopping.")
+            self.append_log_message(self.t("log_no_rigs_stop"))
             return
 
         self.dispatch_network_commands(targets_data, "stop")
 
     def dispatch_network_commands(self, targets_data, action):
-        self.append_log_message(f"Dispatching '{action}' to {len(targets_data)} rigs...")
+        self.append_log_message(self.t("log_dispatching", action, len(targets_data)))
 
         for target in targets_data:
             self.network_manager.broadcast_command(
@@ -998,23 +1018,20 @@ class GuiManager(QMainWindow):
         self.append_log_message(f"[{ip_address}] {status_text}: {message}")
 
     def start_test_synchronization(self):
-        self.append_log_message("Initializing test synchronization worker (DRY RUN)...")
+        self.append_log_message(self.t("log_test_sync_init"))
         self.sync_worker = SyncWorker(self.config_manager, dry_run=True)
         self.sync_worker.log_signal.connect(self.append_log_message)
-        self.sync_worker.finished_signal.connect(
-            lambda: self.append_log_message("Test synchronization process finalized."))
+        self.sync_worker.finished_signal.connect(lambda: self.append_log_message(self.t("log_test_sync_done")))
         self.sync_worker.start()
 
     def start_synchronization(self):
-        reply = QMessageBox.question(self, 'Confirm FULL Synchronization',
-                                     'WARNING: This will copy files over the network to all rigs. Continue?',
+        reply = QMessageBox.question(self, self.t("dialog_sync_title"), self.t("dialog_sync_msg"),
                                      QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.append_log_message("Initializing FULL synchronization worker...")
+            self.append_log_message(self.t("log_full_sync_init"))
             self.sync_worker = SyncWorker(self.config_manager, dry_run=False)
             self.sync_worker.log_signal.connect(self.append_log_message)
-            self.sync_worker.finished_signal.connect(
-                lambda: self.append_log_message("FULL synchronization process finalized."))
+            self.sync_worker.finished_signal.connect(lambda: self.append_log_message(self.t("log_full_sync_done")))
             self.sync_worker.start()
 
     def save_settings(self):
@@ -1032,8 +1049,7 @@ class GuiManager(QMainWindow):
         configuration_data["clients"] = new_clients_list
         self.config_manager.save_configuration(configuration_data)
 
-        self.append_log_message(
-            "Configuration saved successfully. Please restart application to apply new rigs configuration.")
+        self.append_log_message(self.t("log_config_saved"))
 
     def closeEvent(self, event):
         self.save_drivers_history()

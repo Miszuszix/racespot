@@ -37,7 +37,7 @@
         },
         {
             "name": "RIG 9",
-            "ip": "192.168.0.12"
+            "ip": "192.168.0.19"
         }
     ],
     "master_cars_path": "//RIG1/assettocorsa/content/cars",
