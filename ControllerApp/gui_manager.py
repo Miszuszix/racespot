@@ -113,7 +113,6 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
-            car_combobox.setPlaceholderText("Brak przypisanego auta")
             car_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_car_selection_changed(ip))
             self.rig_car_comboboxes[ip_address] = car_combobox
             self.scroll_layout.addWidget(car_combobox, row_index, 3)
@@ -306,18 +305,34 @@ class GuiManager(QMainWindow):
 
     def refresh_servers_list(self):
         self.append_log_message("Refreshing server list...")
+
+        current_index = self.server_combobox.currentIndex()
+        saved_folder_id = None
+        if current_index >= 0:
+            old_data = self.server_combobox.itemData(current_index)
+            if old_data:
+                saved_folder_id = old_data.get("folder_id")
+
         self.server_presets = self.data_provider.fetch_server_presets()
 
         self.server_combobox.blockSignals(True)
         self.server_combobox.clear()
 
-        for server_data in self.server_presets:
+        index_to_restore = 0
+        for idx, server_data in enumerate(self.server_presets):
             status_indicator = "●" if server_data.get("is_running") else "○"
             display_text = f"{status_indicator} {server_data['name']}"
             self.server_combobox.addItem(display_text, server_data)
 
+            if saved_folder_id and server_data.get("folder_id") == saved_folder_id:
+                index_to_restore = idx
+
+        if self.server_combobox.count() > 0:
+            self.server_combobox.setCurrentIndex(index_to_restore)
+
         self.server_combobox.blockSignals(False)
         self.append_log_message(f"Found {len(self.server_presets)} servers.")
+
         self.on_server_selection_changed()
 
     def on_server_selection_changed(self, *args):
