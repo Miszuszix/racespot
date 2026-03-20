@@ -42,7 +42,8 @@ class GuiManager(QMainWindow):
         self.setup_user_interface()
         self.refresh_servers_list()
 
-        self.fetch_online_data()
+        # Inicjujemy pobranie nazw dla serwerów Online i rozdzielenie aut
+        self.refresh_online_servers_list()
         self.load_drivers_history()
 
     def setup_user_interface(self):
@@ -121,7 +122,6 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
-            car_combobox.setPlaceholderText("Brak przypisanego auta")
             car_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_car_selection_changed(ip))
             self.rig_car_comboboxes[ip_address] = car_combobox
             self.scroll_layout.addWidget(car_combobox, row_index, 3)
@@ -186,26 +186,23 @@ class GuiManager(QMainWindow):
         top_row.addWidget(QLabel("Wybierz Serwer Online:"))
 
         self.online_server_combobox = QComboBox()
-        self.online_server_combobox.setMinimumWidth(300)
+        self.online_server_combobox.setMinimumWidth(400)
 
+        # =========================================================
+        # BAZA TWOICH SERWERÓW: Zmienione IP na poprawne 146...
+        # =========================================================
         self.hardcoded_online_servers = [
-            {"display": "Serwer #1 (Port 8011)", "ip": "145.59.35.158", "http_port": "8011",
-             "password": "twoje_haslo_1"},
-            {"display": "Serwer #2 (Port 8012)", "ip": "145.59.35.158", "http_port": "8012",
-             "password": "twoje_haslo_2"},
-            {"display": "Serwer #3 (Port 8013)", "ip": "145.59.35.158", "http_port": "8013",
-             "password": "twoje_haslo_3"}
+            {"ip": "146.59.35.158", "http_port": "8011", "password": "twoje_haslo_1"},
+            {"ip": "146.59.35.158", "http_port": "8012", "password": "twoje_haslo_2"},
+            {"ip": "146.59.35.158", "http_port": "8013", "password": "twoje_haslo_3"}
         ]
-
-        for srv in self.hardcoded_online_servers:
-            self.online_server_combobox.addItem(srv["display"], srv)
 
         self.online_server_combobox.currentIndexChanged.connect(self.fetch_online_data)
         self.online_server_combobox.activated.connect(self.fetch_online_data)
         top_row.addWidget(self.online_server_combobox)
 
         fetch_button = QPushButton("Odśwież (Refresh)")
-        fetch_button.clicked.connect(self.fetch_online_data)
+        fetch_button.clicked.connect(self.refresh_online_servers_list)
         top_row.addWidget(fetch_button)
         top_row.addStretch()
 
@@ -604,6 +601,43 @@ class GuiManager(QMainWindow):
 
     # --- ONLINE LOGIC ---
 
+    def refresh_online_servers_list(self):
+        self.append_log_message("Pobieranie oficjalnych nazw z serwerów online...")
+
+        current_index = self.online_server_combobox.currentIndex()
+        saved_port = None
+        if current_index >= 0:
+            old_data = self.online_server_combobox.itemData(current_index)
+            if old_data:
+                saved_port = old_data.get("http_port")
+
+        self.online_server_combobox.blockSignals(True)
+        self.online_server_combobox.clear()
+
+        index_to_restore = 0
+
+        for idx, srv in enumerate(self.hardcoded_online_servers):
+            ip = srv["ip"]
+            port = srv["http_port"]
+
+            data = self.data_provider.fetch_online_server_info(ip, port)
+            if data and "error" not in data:
+                # Wyciąga oficjalną nazwę serwera podaną w pliku json
+                name = data.get("name", f"Serwer (Port {port})")
+            else:
+                name = f"Offline / Błąd połączenia (Port {port})"
+
+            self.online_server_combobox.addItem(name, srv)
+
+            if saved_port and port == saved_port:
+                index_to_restore = idx
+
+        if self.online_server_combobox.count() > 0:
+            self.online_server_combobox.setCurrentIndex(index_to_restore)
+
+        self.online_server_combobox.blockSignals(False)
+        self.fetch_online_data()
+
     def fetch_online_data(self, *args):
         current_index = self.online_server_combobox.currentIndex()
         if current_index < 0: return
@@ -620,6 +654,7 @@ class GuiManager(QMainWindow):
             self.append_log_message(f"Failed to fetch server data: {data.get('error', 'Unknown error')}")
             self.online_server_info_label.setText("Brak połączenia. Upewnij się, że serwer jest włączony.")
             self.current_online_slots = []
+            self.recalc_labels_only_online()
             return
 
         name = data.get("name", "Unknown Server")
@@ -889,7 +924,6 @@ class GuiManager(QMainWindow):
             self.append_log_message("Error: No online server data fetched. Fetch data first.")
             return
 
-        # Używamy zhardcodowanego hasła dla wybranego serwera
         password = self.current_online_info["password"]
 
         targets_data = []
