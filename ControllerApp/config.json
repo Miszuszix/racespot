@@ -1,11 +1,11 @@
 {
     "ac_root_path": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa",
     "secret_token": "asd",
-    "master_server_ip": "127.0.0.1",
+    "master_server_ip": "192.168.0.11",
     "clients": [
         {
             "name": "RIG 1",
-            "ip": "127.0.0.1"
+            "ip": "192.168.0.14"
         },
         {
             "name": "RIG 2",

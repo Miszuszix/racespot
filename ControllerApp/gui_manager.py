@@ -112,7 +112,6 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
-            car_combobox.setPlaceholderText("Brak przypisanego auta")
             car_combobox.currentIndexChanged.connect(lambda index, ip=ip_address: self.on_car_selection_changed(ip))
             self.rig_car_comboboxes[ip_address] = car_combobox
             self.scroll_layout.addWidget(car_combobox, row_index, 3)
