@@ -27,7 +27,6 @@
   "table_driver": "Imię Kierowcy",
   "table_car": "Auto (Dostępne/Wszystkie)",
   "table_skin": "Wybór Skina",
-  "combo_no_car": "Brak przypisanego auta",
   "combo_no_skin": "-",
   "btn_select_all": "Zaznacz Wszystkie",
   "btn_deselect_all": "Odznacz Wszystkie",

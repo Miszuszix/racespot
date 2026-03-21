@@ -267,7 +267,6 @@ class GuiManager(QMainWindow):
 
             car_combobox = QComboBox()
             car_combobox.setMinimumWidth(300)
-            car_combobox.setPlaceholderText(self.t("combo_no_car"))
             car_combobox.currentIndexChanged.connect(
                 lambda index, ip=ip_address: self.on_online_car_selection_changed(ip))
             self.online_rig_car_comboboxes[ip_address] = car_combobox
@@ -699,12 +698,18 @@ class GuiManager(QMainWindow):
         self.append_log_message(self.t("log_online_loaded", len(cars)))
 
         self.current_online_slots = []
-        for idx, car in enumerate(cars):
-            self.current_online_slots.append({
-                "slot_id": f"CAR_{idx}",
-                "model_id": car,
-                "skin": ""
-            })
+        slot_idx = 0
+
+        slots_to_create = maxclients if maxclients > 0 else 10
+
+        for car in cars:
+            for _ in range(slots_to_create):
+                self.current_server_slots.append({
+                    "slot_id": f"CAR_{slot_idx}",
+                    "model_id": car,
+                    "skin": ""
+                })
+                slot_idx += 1
 
         for ip_address in self.online_rig_car_comboboxes.keys():
             self.online_assigned_slots[ip_address] = None

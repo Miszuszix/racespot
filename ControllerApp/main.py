@@ -1,6 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette, QColor, QIcon
+from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
 from config_manager import ConfigManager
 from data_provider import DataProvider
@@ -28,9 +28,6 @@ def apply_dark_theme(application):
 def main():
     application = QApplication(sys.argv)
     apply_dark_theme(application)
-
-    application.setWindowIcon(QIcon("rs_logo.ico"))
-
     config_manager = ConfigManager()
     
     assetto_corsa_path = config_manager.get("ac_root_path", "")
