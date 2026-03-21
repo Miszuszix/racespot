@@ -295,7 +295,6 @@ class GuiManager(QMainWindow):
         rigs_layout.addLayout(buttons_layout)
 
         layout.addWidget(rigs_group)
-        layout.addStretch()
 
         action_buttons_layout = QHBoxLayout()
         start_online_button = QPushButton(self.t("online_btn_start"))
