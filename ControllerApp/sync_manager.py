@@ -2,7 +2,6 @@ import os
 import shutil
 from PySide6.QtCore import QThread, Signal
 
-
 class SyncWorker(QThread):
     log_signal = Signal(str)
     finished_signal = Signal()
@@ -12,6 +11,17 @@ class SyncWorker(QThread):
         self.config_manager = config_manager
         self.dry_run = dry_run
 
+        self.summary = {}
+        for client in self.config_manager.get("clients", []):
+            rig_name = client.get("name", "Unknown")
+            self.summary[rig_name] = {
+                "cars_copy": 0,
+                "cars_del": 0,
+                "skins_add": 0,
+                "tracks_copy": 0,
+                "tracks_del": 0
+            }
+
     def run(self):
         mode_text = "[TEST MODE]" if self.dry_run else "[ACTUAL SYNC]"
         self.log_signal.emit(f"\n=== STARTING {mode_text} ===")
@@ -20,6 +30,7 @@ class SyncWorker(QThread):
         master_tracks_directory = self.config_manager.get('master_tracks_path', '')
         target_cars_directories = self.config_manager.get('sync_cars_paths', [])
         target_tracks_directories = self.config_manager.get('sync_tracks_paths', [])
+        clients = self.config_manager.get('clients', [])
 
         if not master_cars_directory or not master_tracks_directory:
             self.log_signal.emit("ERROR: Master paths not defined in configuration.")
@@ -30,22 +41,48 @@ class SyncWorker(QThread):
         if not os.path.exists(master_cars_directory):
             self.log_signal.emit(f"CRITICAL ERROR: Master cars directory not found: {master_cars_directory}")
         else:
-            for target_directory in target_cars_directories:
+            for i, target_directory in enumerate(target_cars_directories):
                 if target_directory.strip():
-                    self.sync_cars_directory(master_cars_directory, target_directory)
+                    rig_name = clients[i].get("name", f"RIG {i + 1}") if i < len(clients) else f"RIG {i + 1}"
+                    if rig_name not in self.summary:
+                        self.summary[rig_name] = {"cars_copy": 0, "cars_del": 0, "skins_add": 0, "tracks_copy": 0,
+                                                  "tracks_del": 0}
+
+                    self.sync_cars_directory(master_cars_directory, target_directory, rig_name)
 
         self.log_signal.emit(">>> CHECKING TRACKS")
         if not os.path.exists(master_tracks_directory):
             self.log_signal.emit(f"CRITICAL ERROR: Master tracks directory not found: {master_tracks_directory}")
         else:
-            for target_directory in target_tracks_directories:
+            for i, target_directory in enumerate(target_tracks_directories):
                 if target_directory.strip():
-                    self.sync_basic_directory(master_tracks_directory, target_directory)
+                    rig_name = clients[i].get("name", f"RIG {i + 1}") if i < len(clients) else f"RIG {i + 1}"
+                    if rig_name not in self.summary:
+                        self.summary[rig_name] = {"cars_copy": 0, "cars_del": 0, "skins_add": 0, "tracks_copy": 0,
+                                                  "tracks_del": 0}
+
+                    self.sync_basic_directory(master_tracks_directory, target_directory, rig_name)
+
+        if self.dry_run:
+            summary_lines = ["\n=== PODSUMOWANIE TESTU SYNCHRONIZACJI ==="]
+
+            for rig_name, stats in self.summary.items():
+                summary_lines.append(f"--{rig_name}--")
+                summary_lines.append("--Auta--")
+                summary_lines.append(f"Do skopiowania: {stats['cars_copy']}")
+                summary_lines.append(f"Do usunięcia: {stats['cars_del']}")
+                summary_lines.append(f"Skiny: {stats['skins_add']}")
+                summary_lines.append("--Tory--")
+                summary_lines.append(f"Do skopiowania: {stats['tracks_copy']}")
+                summary_lines.append(f"Do usunięcia: {stats['tracks_del']}")
+                summary_lines.append("")  # Pusta linia dla czytelności
+
+            self.log_signal.emit("\n".join(summary_lines))
 
         self.log_signal.emit(f"=== FINISHED {mode_text} ===\n")
         self.finished_signal.emit()
 
-    def sync_basic_directory(self, source_directory, target_directory):
+    def sync_basic_directory(self, source_directory, target_directory, rig_name):
         if not os.path.exists(target_directory):
             self.log_signal.emit(f"ERROR: Target unreachable: {target_directory}")
             return
@@ -64,6 +101,8 @@ class SyncWorker(QThread):
                 target_path = os.path.join(target_directory, item)
 
                 if os.path.isdir(source_path):
+                    self.summary[rig_name]["tracks_copy"] += 1
+
                     if self.dry_run:
                         self.log_signal.emit(f"[TEST] Would copy track: '{item}' to {target_directory}")
                     else:
@@ -75,7 +114,7 @@ class SyncWorker(QThread):
         except Exception as exception:
             self.log_signal.emit(f"SYNC ERROR on {target_directory}: {exception}")
 
-    def sync_cars_directory(self, source_directory, target_directory):
+    def sync_cars_directory(self, source_directory, target_directory, rig_name):
         if not os.path.exists(target_directory):
             self.log_signal.emit(f"ERROR: Target unreachable: {target_directory}")
             return
@@ -95,6 +134,8 @@ class SyncWorker(QThread):
 
                 if os.path.isdir(source_path):
                     changes_found = True
+                    self.summary[rig_name]["cars_copy"] += 1
+
                     if self.dry_run:
                         self.log_signal.emit(f"[TEST] Would copy car: '{car}' to {target_directory}")
                     else:
@@ -119,6 +160,8 @@ class SyncWorker(QThread):
 
                         if os.path.isdir(source_skin_path):
                             changes_found = True
+                            self.summary[rig_name]["skins_add"] += 1
+
                             if self.dry_run:
                                 self.log_signal.emit(
                                     f"[TEST] Would copy skin: '{skin}' for car '{car}' to {target_directory}")

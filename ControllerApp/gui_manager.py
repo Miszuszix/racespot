@@ -1018,8 +1018,16 @@ class GuiManager(QMainWindow):
 
     @Slot(str, bool, str)
     def on_network_progress(self, ip_address, success, message):
+        clients_list = self.config_manager.get("clients", [])
+
+        rig_name = ip_address
+        for client in clients_list:
+            if client.get("ip") == ip_address:
+                rig_name = client.get("name")
+                break
         status_text = "SUCCESS" if success else "FAILED"
-        self.append_log_message(f"[{ip_address}] {status_text}: {message}")
+
+        self.append_log_message(f"[{rig_name}] {status_text}: {message}")
 
     def start_test_synchronization(self):
         self.append_log_message(self.t("log_test_sync_init"))
