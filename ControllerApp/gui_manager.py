@@ -704,7 +704,7 @@ class GuiManager(QMainWindow):
 
         for car in cars:
             for _ in range(slots_to_create):
-                self.current_server_slots.append({
+                self.current_online_slots.append({
                     "slot_id": f"CAR_{slot_idx}",
                     "model_id": car,
                     "skin": ""
