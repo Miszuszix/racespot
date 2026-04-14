@@ -154,20 +154,33 @@ class GuiManager(QMainWindow):
         scroll_area.setWidget(scroll_content)
         rigs_layout.addWidget(scroll_area)
 
+        # --- ZMODYFIKOWANY PANEL PRZYCISKÓW (LAN) ---
         buttons_layout = QHBoxLayout()
+
+        left_buttons_vbox = QVBoxLayout()
+
+        clear_names_btn = QPushButton(self.t("btn_clear_names"))
+        clear_names_btn.setStyleSheet("background-color: #fbc02d; color: black; font-weight: bold;")
+        clear_names_btn.clicked.connect(lambda: self.clear_all_names(is_online=False))
+        left_buttons_vbox.addWidget(clear_names_btn)
+
+        select_hbox = QHBoxLayout()
         select_all_button = QPushButton(self.t("btn_select_all"))
+        select_all_button.setStyleSheet("background-color: #81c784; color: black; font-weight: bold;")
         select_all_button.clicked.connect(lambda: self.toggle_all_checkboxes(True))
+
         deselect_all_button = QPushButton(self.t("btn_deselect_all"))
+        deselect_all_button.setStyleSheet("background-color: #e57373; color: black; font-weight: bold;")
         deselect_all_button.clicked.connect(lambda: self.toggle_all_checkboxes(False))
 
-        buttons_layout.addWidget(select_all_button)
-        buttons_layout.addWidget(deselect_all_button)
+        select_hbox.addWidget(select_all_button)
+        select_hbox.addWidget(deselect_all_button)
+        left_buttons_vbox.addLayout(select_hbox)
+
+        buttons_layout.addLayout(left_buttons_vbox)
         buttons_layout.addStretch()
 
-        # --- 4 PRZYCISKI SYNCHRONIZACJI ---
         sync_buttons_vbox = QVBoxLayout()
-
-        # Pierwszy rządek: Auta i Tory
         sync_ct_hbox = QHBoxLayout()
         test_sync_ct_btn = QPushButton(self.t("btn_test_sync_ct"))
         test_sync_ct_btn.setStyleSheet("background-color: #555555; color: white;")
@@ -180,7 +193,6 @@ class GuiManager(QMainWindow):
         sync_ct_hbox.addWidget(test_sync_ct_btn)
         sync_ct_hbox.addWidget(full_sync_ct_btn)
 
-        # Drugi rządek: Tylko Skiny
         sync_skins_hbox = QHBoxLayout()
         test_sync_skins_btn = QPushButton(self.t("btn_test_sync_skins"))
         test_sync_skins_btn.setStyleSheet("background-color: #555555; color: white;")
@@ -197,7 +209,7 @@ class GuiManager(QMainWindow):
         sync_buttons_vbox.addLayout(sync_skins_hbox)
 
         buttons_layout.addLayout(sync_buttons_vbox)
-        # --------------------------------
+        # --------------------------------------------
 
         rigs_layout.addLayout(buttons_layout)
         layout.addWidget(rigs_group)
@@ -260,7 +272,8 @@ class GuiManager(QMainWindow):
         scroll_content = QWidget()
         self.online_scroll_layout = QGridLayout(scroll_content)
 
-        headers = [self.t("table_select"), self.t("table_rig"), self.t("table_driver"), self.t("table_car"), self.t("table_skin")]
+        headers = [self.t("table_select"), self.t("table_rig"), self.t("table_driver"), self.t("table_car"),
+                   self.t("table_skin")]
         for column_index, header_text in enumerate(headers):
             self.online_scroll_layout.addWidget(QLabel(header_text), 0, column_index)
 
@@ -301,14 +314,33 @@ class GuiManager(QMainWindow):
         scroll_area.setWidget(scroll_content)
         rigs_layout.addWidget(scroll_area)
 
+        # --- ZMODYFIKOWANY PANEL PRZYCISKÓW (ONLINE) ---
         buttons_layout = QHBoxLayout()
+
+        left_buttons_vbox = QVBoxLayout()
+
+        clear_names_btn = QPushButton(self.t("btn_clear_names"))
+        clear_names_btn.setStyleSheet("background-color: #fbc02d; color: black; font-weight: bold;")
+        clear_names_btn.clicked.connect(lambda: self.clear_all_names(is_online=True))
+        left_buttons_vbox.addWidget(clear_names_btn)
+
+        select_hbox = QHBoxLayout()
         select_all_button = QPushButton(self.t("btn_select_all"))
+        select_all_button.setStyleSheet("background-color: #81c784; color: black; font-weight: bold;")
         select_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(True))
+
         deselect_all_button = QPushButton(self.t("btn_deselect_all"))
+        deselect_all_button.setStyleSheet("background-color: #e57373; color: black; font-weight: bold;")
         deselect_all_button.clicked.connect(lambda: self.toggle_all_checkboxes_online(False))
-        buttons_layout.addWidget(select_all_button)
-        buttons_layout.addWidget(deselect_all_button)
+
+        select_hbox.addWidget(select_all_button)
+        select_hbox.addWidget(deselect_all_button)
+        left_buttons_vbox.addLayout(select_hbox)
+
+        buttons_layout.addLayout(left_buttons_vbox)
         buttons_layout.addStretch()
+        # -----------------------------------------------
+
         rigs_layout.addLayout(buttons_layout)
 
         layout.addWidget(rigs_group)
@@ -402,6 +434,15 @@ class GuiManager(QMainWindow):
         else:
             for ip_address in self.rig_assigned_slots: self.rig_assigned_slots[ip_address] = None
             self.recalc_labels_only()
+
+    # --- NOWA FUNKCJA DO CZYSZCZENIA IMION ---
+    def clear_all_names(self, is_online=False):
+        if is_online:
+            for input_field in self.online_rig_name_inputs.values():
+                input_field.clear()
+        else:
+            for input_field in self.rig_name_inputs.values():
+                input_field.clear()
 
     def refresh_servers_list(self):
         self.append_log_message(self.t("log_refreshing_lan"))
@@ -834,10 +875,21 @@ class GuiManager(QMainWindow):
             if ip_address in history: name_input.setText(history[ip_address])
 
     def save_drivers_history(self):
-        history = {}
+        # Ulepszona funkcja zapisu - wczytujemy stan pliku jako bazę, 
+        # więc puste pola na ekranie NIE skasują imion zapisanych w pliku last_drivers.json
+        history = self.data_provider.load_drivers_history()
+
         for ip_address, name_input in self.rig_name_inputs.items():
             driver_name = name_input.text().strip()
-            if driver_name: history[ip_address] = driver_name
+            if driver_name:
+                history[ip_address] = driver_name
+
+        # Zbieramy dla pewności również z widoku Online
+        for ip_address, name_input in self.online_rig_name_inputs.items():
+            driver_name = name_input.text().strip()
+            if driver_name:
+                history[ip_address] = driver_name
+
         self.data_provider.save_drivers_history(history)
 
     def execute_start_race_lan(self):

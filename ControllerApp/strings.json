@@ -21,6 +21,7 @@
   "online_err_connection": "Brak połączenia. Upewnij się, że serwer jest włączony.",
   "online_connected_info": "Połączono: {}  |  Tor: {}  |  Graczy: {}/{}",
   "online_server_offline": "Offline / Błąd połączenia (Port {})",
+  "btn_clear_names": "Wyczyść Imiona",
 
   "table_select": "Wybierz",
   "table_rig": "Stanowisko",
