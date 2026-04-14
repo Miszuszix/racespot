@@ -37,13 +37,13 @@
         },
         {
             "name": "RIG 9",
-            "ip": "192.168.0.19"
+            "ip": "RIG9"
         }
     ],
     "master_cars_path": "//RIG1/assettocorsa/content/cars",
     "master_tracks_path": "//RIG1/assettocorsa/content/tracks",
     "sync_cars_paths": [
-        "C://Program Files (x86)/Steam/steamapps/common/assetocorsa/content/cars",
+        "C://Program Files (x86)/Steam/steamapps/common/assettocorsa/content/cars",
         "//RIG2/content/cars",
         "//RIG3/common/assettocorsa/content/cars",
         "//RIG4/common/assettocorsa/content/cars",
@@ -54,7 +54,7 @@
         "//RIG9/assettocorsa/content/cars"
     ],
     "sync_tracks_paths": [
-        "C://Program Files (x86)/Steam/steamapps/common/assetocorsa/content/tracks",
+        "C://Program Files (x86)/Steam/steamapps/common/assettocorsa/content/tracks",
         "//RIG2/content/tracks",
         "//RIG3/common/assettocorsa/content/tracks",
         "//RIG4/common/assettocorsa/content/tracks",
