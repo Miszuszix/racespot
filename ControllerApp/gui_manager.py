@@ -242,9 +242,9 @@ class GuiManager(QMainWindow):
         self.online_server_combobox.setMinimumWidth(400)
 
         self.hardcoded_online_servers = [
-            {"ip": "146.59.35.158", "http_port": "8011", "password": "twoje_haslo_1"},
-            {"ip": "146.59.35.158", "http_port": "8012", "password": "twoje_haslo_2"},
-            {"ip": "146.59.35.158", "http_port": "8013", "password": "twoje_haslo_3"}
+            {"ip": "146.59.35.158", "http_port": "8011", "password": "adminrs"},
+            {"ip": "146.59.35.158", "http_port": "8012", "password": "adminrs001!"},
+            {"ip": "146.59.35.158", "http_port": "8013", "password": "adminrs001!"}
         ]
 
         self.online_server_combobox.currentIndexChanged.connect(self.fetch_online_data)
