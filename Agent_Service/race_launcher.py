@@ -9,7 +9,6 @@ import win32gui
 import win32con
 import win32process
 import win32api
-import configparser
 
 class RaceLauncher:
     def __init__(self, game_directory, steam_id_fallback=""):
@@ -31,13 +30,13 @@ class RaceLauncher:
     def configure_applications(self):
         if not os.path.exists(self.python_configuration_path):
             return
-        configuration_parser = configparser.ConfigParser()
-        configuration_parser.optionxform = str
-        configuration_parser.read(self.python_configuration_path)
-        if 'APPS' not in configuration_parser:
-            configuration_parser['APPS'] = {}
-        with open(self.python_configuration_path, 'w') as configuration_file:
-            configuration_parser.write(configuration_file)
+
+        with open(self.python_configuration_path, 'r') as configuration_file:
+            content = configuration_file.read()
+
+        if '[APPS]' not in content:
+            with open(self.python_configuration_path, 'a') as configuration_file:
+                configuration_file.write('\n[APPS]\n')
 
     def generate_race_configuration(self, data):
         server_data = data['server_data']
